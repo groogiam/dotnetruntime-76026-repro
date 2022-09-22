@@ -1,0 +1,78 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net6.0</TargetFramework>
+		<OutputType>Exe</OutputType>
+		<!--<MonoRuntimeDebuggerEnabled>true</MonoRuntimeDebuggerEnabled>-->
+		<WasmShellWebAppBasePath>offline-server/</WasmShellWebAppBasePath>
+		<OfflinePackageName>offline-server</OfflinePackageName>
+		<OfflinePackagePathBase>..\BlazorApp\wwwroot\$(OfflinePackageName)</OfflinePackagePathBase>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Uno.Wasm.Bootstrap" Version="3.3.1" />
+		<PackageReference Include="Uno.Wasm.Bootstrap.DevServer" Version="3.3.1" PrivateAssets="all" />
+		<PackageReference Include="Uno.UI.WebAssembly" Version="4.0.9" />
+	</ItemGroup>
+
+	<!--Custom Build Tasks-->
+
+	<UsingTask TaskName="ReplaceFileText" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+		<ParameterGroup>
+			<InputFilename ParameterType="System.String" Required="true" />
+			<OutputFilename ParameterType="System.String" Required="true" />
+			<MatchExpression ParameterType="System.String" Required="true" />
+			<ReplacementText ParameterType="System.String" Required="true" />
+		</ParameterGroup>
+		<Task>
+			<Using Namespace="System" />
+			<Using Namespace="System.IO" />
+			<Using Namespace="System.Text.RegularExpressions" />
+			<Code Type="Fragment" Language="cs">
+				<![CDATA[  
+          File.WriteAllText(
+            OutputFilename,
+            Regex.Replace(File.ReadAllText(InputFilename), MatchExpression, ReplacementText)
+            );
+        ]]>
+			</Code>
+		</Task>
+	</UsingTask>
+
+	<UsingTask TaskName="RenameDirectory" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+		<ParameterGroup>
+			<DirectoryName ParameterType="System.String" Required="true" />
+			<NewDirectoryName ParameterType="System.String" Required="true" />
+		</ParameterGroup>
+		<Task>
+			<Using Namespace="System" />
+			<Using Namespace="System.IO" />
+			<Using Namespace="System.Text.RegularExpressions" />
+			<Code Type="Fragment" Language="cs">
+				<![CDATA[
+          if(Directory.Exists(NewDirectoryName))
+            Directory.Delete(NewDirectoryName, true);
+          Directory.Move(DirectoryName, NewDirectoryName);
+        ]]>
+			</Code>
+		</Task>
+	</UsingTask>
+
+	<!--End Custom Build Tasks-->
+
+	<Target Name="OfflineAfterBuild" AfterTargets="Build">
+
+		<PropertyGroup>
+			<GeneratedOfflinePackageName>$([System.IO.Path]::GetFileName($(WasmShellOutputPackagePath)))</GeneratedOfflinePackageName>
+			<OfflinePackagePath>$([System.IO.Path]::Combine($(OfflinePackagePathBase), $(GeneratedOfflinePackageName)))</OfflinePackagePath>
+		</PropertyGroup>
+
+		<Message Text="Moving Dist Directory from $(WasmShellOutputPackagePath) to $(OfflinePackagePath)" Importance="High" />
+		<RemoveDir Directories="$(OfflinePackagePathBase)" />
+		<MakeDir Directories="$(OfflinePackagePathBase)" />
+		<RenameDirectory DirectoryName="$(WasmShellOutputPackagePath)" NewDirectoryName="$(OfflinePackagePath)" />
+		<WriteLinesToFile File="$(OfflinePackagePathBase)/offline-server-package-config.js" Overwrite="true" Lines="var offlineServerPackageName = '$(GeneratedOfflinePackageName)'%3B" />
+
+	</Target>
+
+</Project>
